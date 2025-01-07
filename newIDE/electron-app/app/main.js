@@ -32,6 +32,8 @@ const {
   closeLocalGDJSDevelopmentWatcher,
 } = require('./LocalGDJSDevelopmentWatcher');
 const { setupWatcher, disableWatcher } = require('./LocalFilesystemWatcher');
+const AdmZip = require("adm-zip");
+const child_process = require('child_process');
 
 // Initialize `@electron/remote` module
 require('@electron/remote/main').initialize();
@@ -217,6 +219,35 @@ app.on('ready', function() {
       indexSubPath: 'yarn/yarn-electron-index.html',
       externalEditorInput,
     });
+  });
+
+  ipcMain.handle('get-user-data', (event) => {
+    return app.getPath('userData');
+  });
+
+  ipcMain.handle('unzip-file', (event, file, outputPath) => {
+    let zip = new AdmZip(file);
+    zip.extractAllTo(outputPath);
+    return zip.getEntries()[0].entryName;
+  });
+
+  ipcMain.handle('add-to-path', (event, folder) => {
+    let separator = process.env.PATH.includes(":") ? ":" : ";"; 
+    process.env.PATH += separator + folder;
+  });
+
+  ipcMain.handle('child-process', async (event, cmd, folder) => {
+    await new Promise((resolve, reject) => {
+      child_process.exec(cmd, {
+        cwd: folder,
+        env: process.env,
+      }, (error, stdout, stderr) => {
+        console.log(stdout);
+        console.log(stderr);
+        console.log(error && error.code);
+        resolve(undefined);
+      });
+    })
   });
 
   // LocalFileUploader events:

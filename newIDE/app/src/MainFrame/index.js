@@ -14,6 +14,7 @@ import ExtensionIcon from '../UI/CustomSvgIcons/Extension';
 import Toolbar, { type ToolbarInterface } from './Toolbar';
 import ProjectTitlebar from './ProjectTitlebar';
 import PreferencesDialog from './Preferences/PreferencesDialog';
+import BuildToolsDialog from'./Preferences/BuildToolsDialog'
 import AboutDialog from './AboutDialog';
 import ProjectManager from '../ProjectManager';
 import LoaderModal from '../UI/LoaderModal';
@@ -370,6 +371,10 @@ const MainFrame = (props: Props) => {
   const [
     preferencesDialogOpen,
     openPreferencesDialog,
+  ] = React.useState<boolean>(false);
+  const [
+    buildToolsDialogOpen,
+    openBuildToolsDialog,
   ] = React.useState<boolean>(false);
   const [
     newProjectSetupDialogOpen,
@@ -3935,6 +3940,20 @@ const MainFrame = (props: Props) => {
               'fake-source-game-id-for-testing'
             )
           }
+          onDownloadBuildTools={() => {
+            if (currentProject)
+              openBuildToolsDialog(true);
+            else
+              // TODO
+              console.error("No projects are currently open.");
+          }}
+        />
+      )}
+      {buildToolsDialogOpen && (
+        <BuildToolsDialog
+          i18n={props.i18n}
+          onClose={() => { openBuildToolsDialog(false); }}
+          project={currentProject}
         />
       )}
       {languageDialogOpen && (

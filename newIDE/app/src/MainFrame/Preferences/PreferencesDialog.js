@@ -34,12 +34,14 @@ type Props = {|
   i18n: I18n,
   onClose: (options: {| languageDidChange: boolean |}) => void,
   onOpenQuickCustomizationDialog: () => void,
+  onDownloadBuildTools: () => void,
 |};
 
 const PreferencesDialog = ({
   i18n,
   onClose,
   onOpenQuickCustomizationDialog,
+  onDownloadBuildTools,
 }: Props) => {
   const { isMobile } = useResponsiveWindowSize();
   const [currentTab, setCurrentTab] = React.useState('preferences');
@@ -225,6 +227,27 @@ const PreferencesDialog = ({
               }
             />
           </Column>
+          {electron && (
+            <>
+              <Text size="block-title">
+                <Trans>Build Tools</Trans>
+              </Text>
+              <Text>
+                <Trans>
+                  Build tools include programs like Node.js, yarn and other packages
+                  a game might need to be exported. By pressing the button below,
+                  GDevelop will will automatically download and install all the needed build tools.
+                </Trans>
+              </Text>
+              <Column noMargin>
+                <RaisedButton
+                  label={<Trans>Install Build Tools</Trans>}
+                  onClick={onDownloadBuildTools}
+                />
+                <Spacer />
+                </Column>
+            </>
+          )}
           <Text size="block-title">
             <Trans>Dialogs</Trans>
           </Text>
