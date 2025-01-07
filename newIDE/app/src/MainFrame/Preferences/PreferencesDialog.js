@@ -236,7 +236,7 @@ const PreferencesDialog = ({
                 <Trans>
                   Build tools include programs like Node.js, yarn and other packages
                   a game might need to be exported. By pressing the button below,
-                  GDevelop will will automatically download and install all the needed build tools.
+                  GDevelop will automatically download and install all the needed build tools.
                 </Trans>
               </Text>
               <Column noMargin>
