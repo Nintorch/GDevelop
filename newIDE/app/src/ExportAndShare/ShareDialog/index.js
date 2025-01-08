@@ -22,7 +22,7 @@ import { useGameAndBuildsManager } from '../../Utils/UseGameAndBuildsManager';
 
 export type ShareTab = 'invite' | 'publish';
 export type ExporterSection = 'browser' | 'desktop' | 'android' | 'ios';
-export type ExporterSubSection = 'online' | 'offline' | 'facebook';
+export type ExporterSubSection = 'online' | 'offline' | 'local' | 'facebook';
 export type ExporterKey =
   | 'onlinewebexport'
   | 'onlineelectronexport'
@@ -30,6 +30,7 @@ export type ExporterKey =
   | 'onlinecordovaiosexport'
   | 'webexport'
   | 'facebookinstantgamesexport'
+  | 'localelectronexport'
   | 'electronexport'
   | 'cordovaexport';
 
@@ -43,6 +44,7 @@ const exporterSectionMapping: {
   },
   desktop: {
     online: 'onlineelectronexport',
+    local: 'localelectronexport',
     offline: 'electronexport',
     facebook: null,
   },
@@ -110,6 +112,7 @@ const ShareDialog = ({
   onChangeSubscription,
   automatedExporters,
   manualExporters,
+  buildToolsExporters,
   onlineWebExporter,
   initialTab,
   fileMetadata,
@@ -183,9 +186,10 @@ const ShareDialog = ({
     () => [
       ...(automatedExporters || []),
       ...(manualExporters || []),
+      ...(buildToolsExporters || []),
       onlineWebExporter,
     ],
-    [automatedExporters, manualExporters, onlineWebExporter]
+    [automatedExporters, manualExporters, buildToolsExporters, onlineWebExporter]
   );
 
   const exporter: ?Exporter = React.useMemo(

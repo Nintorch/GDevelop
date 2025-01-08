@@ -2,6 +2,7 @@
 import { type Exporter } from '../ShareDialog';
 import { localCordovaExportPipeline } from './LocalCordovaExport';
 import { localElectronExportPipeline } from './LocalElectronExport';
+import { localBuildToolsElectronExportPipeline } from './LocalBuildToolsElectronExport';
 import { localHTML5ExportPipeline } from './LocalHTML5Export';
 import { localFacebookInstantGamesExportPipeline } from './LocalFacebookInstantGamesExport';
 import { localOnlineCordovaExportPipeline } from './LocalOnlineCordovaExport';
@@ -16,6 +17,7 @@ import { onlineCordovaExporter } from '../GenericExporters/OnlineCordovaExport';
 import { onlineCordovaIosExporter } from '../GenericExporters/OnlineCordovaIosExport';
 import { onlineElectronExporter } from '../GenericExporters/OnlineElectronExport';
 import { electronExporter } from '../GenericExporters/ElectronExport';
+import { buildToolsElectronExporter } from '../GenericExporters/BuildToolsElectronExport';
 
 export const localOnlineWebExporter: Exporter = {
   ...onlineWebExporter,
@@ -57,5 +59,12 @@ export const localManualExporters: Array<Exporter> = [
   {
     ...electronExporter,
     exportPipeline: localElectronExportPipeline,
+  },
+];
+
+export const localBuildToolsExporters: Array<Exporter> = [
+  {
+    ...buildToolsElectronExporter,
+    exportPipeline: localBuildToolsElectronExportPipeline,
   },
 ];

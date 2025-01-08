@@ -13,6 +13,7 @@ import LocalPreviewLauncher from './ExportAndShare/LocalExporters/LocalPreviewLa
 import {
   localAutomatedExporters,
   localManualExporters,
+  localBuildToolsExporters,
   localOnlineWebExporter,
 } from './ExportAndShare/LocalExporters';
 import ElectronMainMenu from './MainFrame/ElectronMainMenu';
@@ -88,6 +89,7 @@ export const create = (authentication: Authentication) => {
                   onClose={props.onClose}
                   automatedExporters={localAutomatedExporters}
                   manualExporters={localManualExporters}
+                  buildToolsExporters={localBuildToolsExporters}
                   onlineWebExporter={localOnlineWebExporter}
                   fileMetadata={props.fileMetadata}
                   storageProvider={props.storageProvider}

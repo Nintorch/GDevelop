@@ -38,8 +38,10 @@ async function commandExists(cmd: string): boolean {
 
 async function setupBuildToolsElectron(buildToolsPath, project, setStatus1, setStatus2) {
     buildToolsPath = path.join(buildToolsPath, "Electron");
-    fs.mkdirSync(buildToolsPath);
+    if (!fs.existsSync(buildToolsPath))
+        fs.mkdirSync(buildToolsPath);
     // Downloading Node.js if it's not available
+    // TODO: check if commandExists works
     if (!await commandExists("node")) {
         let nodePath: string = path.join(buildToolsPath, "Node")
 
@@ -105,6 +107,8 @@ async function setupBuildToolsElectron(buildToolsPath, project, setStatus1, setS
 
     setStatus2("Installing dependencies");
     await ipcRenderer.invoke("child-process", "npm install", buildPath);
+    await ipcRenderer.invoke("child-process", "node build.js", buildPath);
+    // TODO: cleanup
 }
 
 const BuildToolsDialog = ({
@@ -139,7 +143,7 @@ const BuildToolsDialog = ({
 
         if (setupStarted)
             setupBuildTools();
-    }, [project, setupStarted]);
+    }, [project, setupStarted, setupElectron]);
 
     return (
         <Dialog

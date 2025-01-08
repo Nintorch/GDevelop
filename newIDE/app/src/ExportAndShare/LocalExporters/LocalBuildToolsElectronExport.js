@@ -6,7 +6,7 @@ import RaisedButton from '../../UI/RaisedButton';
 import { Column, Line } from '../../UI/Grid';
 import { findGDJS } from '../../GameEngineFinder/LocalGDJSFinder';
 import LocalFileSystem, { type UrlFileDescriptor } from './LocalFileSystem';
-import LocalFolderPicker from '../../UI/LocalFolderPicker';
+import LocalFilePicker from '../../UI/LocalFilePicker';
 import assignIn from 'lodash/assignIn';
 import optionalRequire from '../../Utils/OptionalRequire';
 import {
@@ -27,11 +27,13 @@ const remote = optionalRequire('@electron/remote');
 const shell = remote ? remote.shell : null;
 const path = optionalRequire('path');
 const fs = window.require ? window.require('fs') : undefined;
+const electron = optionalRequire('electron');
+const { ipcRenderer } = electron || {};
 
 const gd: libGDevelop = global.gd;
 
 type ExportState = {
-  outputDir: string,
+  outputFile: string,
 };
 
 type PreparedExporter = {|
@@ -49,7 +51,7 @@ type CompressionOutput = null;
 
 const exportPipelineName = 'local-electron';
 
-export const localElectronExportPipeline: ExportPipeline<
+export const localBuildToolsElectronExportPipeline: ExportPipeline<
   ExportState,
   PreparedExporter,
   ExportOutput,
@@ -60,10 +62,10 @@ export const localElectronExportPipeline: ExportPipeline<
   packageNameWarningType: 'desktop',
 
   getInitialExportState: (project: gdProject) => ({
-    outputDir: project.getLastCompilationDirectory(),
+    outputFile: "",
   }),
 
-  canLaunchBuild: exportState => !!exportState.outputDir,
+  canLaunchBuild: exportState => !!exportState.outputFile,
 
   isNavigationDisabled: () => false,
 
@@ -76,14 +78,21 @@ export const localElectronExportPipeline: ExportPipeline<
           </Column>
         </Line>
         <Line>
-          <LocalFolderPicker
-            type="export"
-            value={exportState.outputDir}
-            defaultPath={project.getLastCompilationDirectory()}
-            onChange={outputDir => {
-              updateExportState(() => ({ outputDir }));
-              project.setLastCompilationDirectory(outputDir);
-            }}
+          <LocalFilePicker
+            title={'Choose the path for your exported game'}
+            message={
+              'Choose where to save the exported file for your game'
+            }
+            filters={[
+              {
+                name: 'Windows Executable',
+                extensions: ['exe'],
+              },
+            ]}
+            value={exportState.outputFile}
+            onChange={value =>
+              updateExportState(() => ({ outputFile: value }))
+            }
             fullWidth
           />
         </Line>
@@ -122,9 +131,10 @@ export const localElectronExportPipeline: ExportPipeline<
     { exporter, localFileSystem }: PreparedExporter,
     fallbackAuthor: ?{ id: string, username: string }
   ): Promise<ExportOutput> => {
+    let outputDir: string = path.join(await ipcRenderer.invoke("get-user-data"), "Build Tools", "Electron", "Build");
     const exportOptions = new gd.ExportOptions(
       context.project,
-      context.exportState.outputDir
+      outputDir
     );
     exportOptions.setTarget('electron');
     if (fallbackAuthor) {
@@ -135,8 +145,8 @@ export const localElectronExportPipeline: ExportPipeline<
     }
     exporter.exportWholePixiProject(exportOptions);
     
-    let configFilePath = path.join(context.exportState.outputDir, "build.js");
-    // TODO: it shouldn't be Windows-only
+    let configFilePath = path.join(outputDir, "build.js");
+    // TODO: it shouldn't be Windows-only and it shouldn't be duplicate between this file and the other Electron export file
     let data = `
       const builder = require("electron-builder");
       builder.build({
@@ -144,17 +154,26 @@ export const localElectronExportPipeline: ExportPipeline<
         config: {
           win: {
             target: 'portable'
-          }
+          },
+          artifactName: "result.exe",
         }
       });
     `;
     fs.writeFileSync(configFilePath, data);
 
+    await ipcRenderer.invoke("child-process", "node build.js", outputDir);
+    fs.cpSync(
+      path.join(outputDir, "dist", "result.exe"),
+      context.exportState.outputFile
+    );
+
+    // TODO: cleanup, application information, icon
+
     exportOptions.delete();
     exporter.delete();
 
     return {
-      urlFiles: localFileSystem.getAllUrlFilesIn(context.exportState.outputDir),
+      urlFiles: localFileSystem.getAllUrlFilesIn(outputDir),
     };
   },
 

@@ -38,6 +38,8 @@ import { useResponsiveWindowSize } from '../../UI/Responsive/ResponsiveWindowMea
 import { type GameAndBuildsManager } from '../../Utils/UseGameAndBuildsManager';
 import { I18n } from '@lingui/react';
 
+const electron = window.require ? window.require('electron') : null;
+
 const styles = {
   buttonBase: {
     borderRadius: 8,
@@ -486,6 +488,17 @@ const PublishHome = ({
             disabled={!isOnline}
             id="publish-desktop-cloud"
           />
+          {electron && (
+            <SectionLine
+              label={<Trans>Local export</Trans>}
+              icon={getSubSectionIcon('desktop', 'offline')}
+              description={<Trans>Build tools required</Trans>}
+              onClick={() => onChooseSubSection('local')}
+              // TODO: check if the build tools are set up
+              disabled={allExportersRequireOnline && !isOnline}
+              id="publish-desktop-local"
+            />
+          )}
           <SectionLine
             label={<Trans>Manual build</Trans>}
             icon={getSubSectionIcon('desktop', 'offline')}
