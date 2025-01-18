@@ -232,8 +232,7 @@ app.on('ready', function() {
   });
 
   ipcMain.handle('add-to-path', (event, folder) => {
-    let separator = process.env.PATH.includes(":") ? ":" : ";"; 
-    process.env.PATH += separator + folder;
+    process.env.PATH += path.delimiter + folder;
   });
 
   ipcMain.handle('child-process', async (event, cmd, folder) => {
