@@ -94,12 +94,22 @@ const generatedEventsCodeToJSFunction = (code, gdjs, runtimeScene) => {
   return (...args) => func(gdjs, runtimeScene, args);
 };
 
+/**
+ * @param {*} gd 
+ * @param {gdProject} project 
+ * @param {gdEventsFunctionsExtension} eventsFunctionsExtension 
+ * @param {gdEventsBasedBehavior} eventsBasedBehavior 
+ * @param {*} gdjs 
+ * @param {{logCode: boolean}} options 
+ * @returns 
+ */
 function generateCompiledEventsForEventsBasedBehavior(
   gd,
   project,
   eventsFunctionsExtension,
   eventsBasedBehavior,
-  gdjs
+  gdjs,
+  options = {}
 ) {
   const includeFiles = new gd.SetString();
   const codeNamespace = 'behaviorNamespace';
@@ -129,6 +139,9 @@ function generateCompiledEventsForEventsBasedBehavior(
     includeFiles,
     true
   );
+  if (options.logCode) {
+    console.log(code);
+  }
 
   // Create a function returning the generated behavior.
   const compiledBehavior = new Function(
@@ -146,12 +159,22 @@ function generateCompiledEventsForEventsBasedBehavior(
   return compiledBehavior;
 }
 
+/**
+ * @param {*} gd 
+ * @param {gdProject} project 
+ * @param {gdEventsFunctionsExtension} eventsFunctionsExtension 
+ * @param {gdEventsBasedObject} eventsBasedObject 
+ * @param {*} gdjs 
+ * @param {{logCode: boolean}} options 
+ * @returns 
+ */
 function generateCompiledEventsForEventsBasedObject(
   gd,
   project,
   eventsFunctionsExtension,
   eventsBasedObject,
-  gdjs
+  gdjs,
+  options = {}
 ) {
   const includeFiles = new gd.SetString();
   const codeNamespace = 'objectNamespace';
@@ -177,6 +200,9 @@ function generateCompiledEventsForEventsBasedObject(
     includeFiles,
     true
   );
+  if (options.logCode) {
+    console.log(code);
+  }
 
   objectCodeGenerator.delete();
   includeFiles.delete();
@@ -239,8 +265,9 @@ function generateCompiledEventsForSerializedEventsBasedExtension(
   const eventsFunctionsExtensionCodeGenerator = new gd.EventsFunctionsExtensionCodeGenerator(
     project
   );
-  for (let i = 0; i < extension.getEventsFunctionsCount(); i++) {
-    const eventsFunction = extension.getEventsFunctionAt(i);
+  const freeEventsFunctions = extension.getEventsFunctions();
+  for (let i = 0; i < freeEventsFunctions.getEventsFunctionsCount(); i++) {
+    const eventsFunction = freeEventsFunctions.getEventsFunctionAt(i);
     generatedExtensionModule.freeFunctions[
       eventsFunction.getName()
     ] = generatedEventsCodeToJSFunction(
@@ -432,8 +459,11 @@ function generateCompiledEventsForLayout(gd, project, layout, logCode = false) {
 
 module.exports = {
   generateCompiledEventsForEventsFunction,
+  generateCompiledEventsForEventsFunctionWithContext,
   generateCompiledEventsFromSerializedEvents,
   generateCompiledEventsFunctionFromSerializedEvents,
   generateCompiledEventsForSerializedEventsBasedExtension,
+  generateCompiledEventsForEventsBasedBehavior,
+  generateCompiledEventsForEventsBasedObject,
   generateCompiledEventsForLayout,
 };

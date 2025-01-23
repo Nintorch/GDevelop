@@ -215,7 +215,7 @@ class GD_CORE_API ExpressionVariablePathFinder
             if (projectScopedContainers.GetVariablesContainersList().Has(identifier)) {
               variablesContainer =
                   &(projectScopedContainers.GetVariablesContainersList()
-                        .GetVariablesContainerFromVariableName(identifier));
+                        .GetVariablesContainerFromVariableOrPropertyOrParameterName(identifier));
               variableName = identifier;
               if (childIdentifier) {
                 childVariableNames.push_back(*childIdentifier);
@@ -223,12 +223,28 @@ class GD_CORE_API ExpressionVariablePathFinder
             }
           },
           [&]() {
-            // Ignore properties here.
-            // There is no support for "children" of properties.
+            // This is a property.
+            if (parameterType != "objectvar" &&
+                    projectScopedContainers.GetVariablesContainersList().Has(
+                        identifier)) {
+              variablesContainer =
+                  &(projectScopedContainers.GetVariablesContainersList()
+                        .GetVariablesContainerFromVariableOrPropertyOrParameterName(identifier));
+              variableName = identifier;
+              // There is no support for "children" of properties.
+            }
           },
           [&]() {
-            // Ignore parameters here.
-            // There is no support for "children" of parameters.
+            // This is a parameter.
+            if (parameterType != "objectvar" &&
+                projectScopedContainers.GetVariablesContainersList().Has(
+                    identifier)) {
+              variablesContainer =
+                  &(projectScopedContainers.GetVariablesContainersList()
+                        .GetVariablesContainerFromVariableOrPropertyOrParameterName(identifier));
+              variableName = identifier;
+              // There is no support for "children" of parameters.
+            }
           },
           [&]() {
             // Ignore unrecognised identifiers here.

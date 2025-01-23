@@ -72,6 +72,7 @@ namespace gdjs {
     private _jumpSpeed: float;
     private _jumpSustainTime: float;
     private _stairHeightMax: float;
+    _canBePushed: boolean;
 
     private _hasPressedForwardKey: boolean = false;
     private _hasPressedBackwardKey: boolean = false;
@@ -145,6 +146,10 @@ namespace gdjs {
         behaviorData.stairHeightMax === undefined
           ? 20
           : behaviorData.stairHeightMax;
+      this._canBePushed =
+        behaviorData.canBePushed === undefined
+          ? true
+          : behaviorData.canBePushed;
     }
 
     private getVec3(x: float, y: float, z: float): Jolt.Vec3 {
@@ -327,6 +332,21 @@ namespace gdjs {
       return result;
     }
 
+    getPhysicsRotation(result: Jolt.Quat): Jolt.Quat {
+      // Characters body should not rotate around X and Y.
+      const rotation = result.sEulerAngles(
+        this.getVec3(0, 0, gdjs.toRad(this.owner3D.getAngle()))
+      );
+      result.Set(
+        rotation.GetX(),
+        rotation.GetY(),
+        rotation.GetZ(),
+        rotation.GetW()
+      );
+      Jolt.destroy(rotation);
+      return result;
+    }
+
     moveObjectToPhysicsPosition(physicsPosition: Jolt.RVec3): void {
       const { behavior } = this.getPhysics3D();
       this.owner3D.setCenterXInScene(
@@ -339,6 +359,19 @@ namespace gdjs {
         (physicsPosition.GetZ() - behavior._shapeHalfDepth) *
           this._sharedData.worldScale
       );
+    }
+
+    moveObjectToPhysicsRotation(physicsRotation: Jolt.Quat): void {
+      const threeObject = this.owner3D.get3DRendererObject();
+      threeObject.quaternion.x = physicsRotation.GetX();
+      threeObject.quaternion.y = physicsRotation.GetY();
+      threeObject.quaternion.z = physicsRotation.GetZ();
+      threeObject.quaternion.w = physicsRotation.GetW();
+      // TODO Avoid this instantiation
+      const euler = new THREE.Euler(0, 0, 0, 'ZYX');
+      euler.setFromQuaternion(threeObject.quaternion);
+      // No need to update the rotation for X and Y as CharacterVirtual doesn't change it.
+      this.owner3D.setAngle(gdjs.toDegrees(euler.z));
     }
 
     onDeActivate() {
@@ -1241,7 +1274,7 @@ namespace gdjs {
      */
     isFalling(): boolean {
       return (
-        !this.isOnFloor() ||
+        this.isFallingWithoutJumping() ||
         (this.isJumping() && this._currentFallSpeed > this._currentJumpSpeed)
       );
     }
@@ -1324,6 +1357,8 @@ namespace gdjs {
   export namespace PhysicsCharacter3DRuntimeBehavior {
     export class CharacterBodyUpdater {
       characterBehavior: gdjs.PhysicsCharacter3DRuntimeBehavior;
+      /** Handle collisions between characters that can push each other. */
+      static characterVsCharacterCollision: Jolt.CharacterVsCharacterCollisionSimple | null = null;
 
       constructor(characterBehavior: gdjs.PhysicsCharacter3DRuntimeBehavior) {
         this.characterBehavior = characterBehavior;
@@ -1336,7 +1371,13 @@ namespace gdjs {
         const shape = behavior.createShape();
 
         const settings = new Jolt.CharacterVirtualSettings();
-        settings.mInnerBodyLayer = behavior.getBodyLayer();
+        // Characters innerBody are Kinematic body, they don't allow other
+        // characters to push them.
+        // The layer 0 doesn't allow any collision as masking them always result to 0.
+        // This allows CharacterVsCharacterCollisionSimple to handle the collisions.
+        settings.mInnerBodyLayer = this.characterBehavior._canBePushed
+          ? 0
+          : behavior.getBodyLayer();
         settings.mInnerBodyShape = shape;
         settings.mMass = shape.GetMassProperties().get_mMass();
         settings.mMaxSlopeAngle = gdjs.toRad(_slopeMaxAngle);
@@ -1376,13 +1417,112 @@ namespace gdjs {
           .GetBodyLockInterface()
           .TryGetBody(character.GetInnerBodyID());
         this.characterBehavior.character = character;
+
+        if (this.characterBehavior._canBePushed) {
+          // CharacterVsCharacterCollisionSimple handle characters pushing each other.
+          let characterVsCharacterCollision =
+            CharacterBodyUpdater.characterVsCharacterCollision;
+          if (!characterVsCharacterCollision) {
+            characterVsCharacterCollision = new Jolt.CharacterVsCharacterCollisionSimple();
+            CharacterBodyUpdater.characterVsCharacterCollision = characterVsCharacterCollision;
+          }
+          characterVsCharacterCollision.Add(character);
+          character.SetCharacterVsCharacterCollision(
+            characterVsCharacterCollision
+          );
+
+          const characterContactListener = new Jolt.CharacterContactListenerJS();
+          characterContactListener.OnAdjustBodyVelocity = (
+            character,
+            body2Ptr,
+            linearVelocityPtr,
+            angularVelocity
+          ) => {};
+          characterContactListener.OnContactValidate = (
+            character,
+            bodyID2,
+            subShapeID2
+          ) => {
+            return true;
+          };
+          characterContactListener.OnCharacterContactValidate = (
+            characterPtr,
+            otherCharacterPtr,
+            subShapeID2
+          ) => {
+            // CharacterVsCharacterCollisionSimple doesn't handle collision layers.
+            // We have to filter characters ourself.
+            const character = Jolt.wrapPointer(
+              characterPtr,
+              Jolt.CharacterVirtual
+            );
+            const otherCharacter = Jolt.wrapPointer(
+              otherCharacterPtr,
+              Jolt.CharacterVirtual
+            );
+
+            const body = _sharedData.physicsSystem
+              .GetBodyLockInterface()
+              .TryGetBody(character.GetInnerBodyID());
+            const otherBody = _sharedData.physicsSystem
+              .GetBodyLockInterface()
+              .TryGetBody(otherCharacter.GetInnerBodyID());
+
+            const physicsBehavior = body.gdjsAssociatedBehavior;
+            const otherPhysicsBehavior = otherBody.gdjsAssociatedBehavior;
+
+            if (!physicsBehavior || !otherPhysicsBehavior) {
+              return true;
+            }
+            return physicsBehavior.canCollideAgainst(otherPhysicsBehavior);
+          };
+          characterContactListener.OnContactAdded = (
+            character,
+            bodyID2,
+            subShapeID2,
+            contactPosition,
+            contactNormal,
+            settings
+          ) => {};
+          characterContactListener.OnCharacterContactAdded = (
+            character,
+            otherCharacter,
+            subShapeID2,
+            contactPosition,
+            contactNormal,
+            settings
+          ) => {};
+          characterContactListener.OnContactSolve = (
+            character,
+            bodyID2,
+            subShapeID2,
+            contactPosition,
+            contactNormal,
+            contactVelocity,
+            contactMaterial,
+            characterVelocity,
+            newCharacterVelocity
+          ) => {};
+          characterContactListener.OnCharacterContactSolve = (
+            character,
+            otherCharacter,
+            subShapeID2,
+            contactPosition,
+            contactNormal,
+            contactVelocity,
+            contactMaterial,
+            characterVelocityPtr,
+            newCharacterVelocityPtr
+          ) => {};
+          character.SetListener(characterContactListener);
+        }
+
         // TODO This is not really reliable. We could choose to disable it and force user to use the "is on platform" condition.
         //body.SetCollideKinematicVsNonDynamic(true);
         return body;
       }
 
       updateObjectFromBody() {
-        const { behavior } = this.characterBehavior.getPhysics3D();
         const { character } = this.characterBehavior;
         if (!character) {
           return;
@@ -1391,8 +1531,9 @@ namespace gdjs {
         this.characterBehavior.moveObjectToPhysicsPosition(
           character.GetPosition()
         );
-        // TODO No need to update the rotation for X and Y as CharacterVirtual doesn't change it.
-        behavior.moveObjectToPhysicsRotation(character.GetRotation());
+        this.characterBehavior.moveObjectToPhysicsRotation(
+          character.GetRotation()
+        );
       }
 
       updateBodyFromObject() {
@@ -1413,9 +1554,10 @@ namespace gdjs {
           behavior._objectOldRotationY !== owner3D.getRotationY() ||
           behavior._objectOldRotationZ !== owner3D.getAngle()
         ) {
-          // TODO No need to update the rotation for X and Y as CharacterVirtual doesn't change it.
           character.SetRotation(
-            behavior.getPhysicsRotation(_sharedData.getQuat(0, 0, 0, 1))
+            this.characterBehavior.getPhysicsRotation(
+              _sharedData.getQuat(0, 0, 0, 1)
+            )
           );
         }
       }

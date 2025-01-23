@@ -54,8 +54,9 @@ export const MaxProjectCountAlertMessage = ({ margin }: Props) => {
         )
       }
       hideButton={!canMaximumCountBeIncreased}
+      recommendedPlanIdIfNoSubscription="gdevelop_silver"
     >
-      <Line noMargin={margin === 'dense'}>
+      <Line>
         <Column noMargin expand>
           <Text
             size={margin === 'dense' ? 'sub-title' : 'block-title'}

@@ -22,7 +22,6 @@ import SemiControlledAutoComplete, {
 import { TextFieldWithButtonLayout } from '../../UI/Layout';
 import { type ParameterInlineRendererProps } from './ParameterInlineRenderer.flow';
 import ShareExternal from '../../UI/CustomSvgIcons/ShareExternal';
-import SvgIcon, { type SvgIconProps } from '@material-ui/core/SvgIcon';
 import SelectField from '../../UI/SelectField';
 import SelectOption from '../../UI/SelectOption';
 import { ColumnStackLayout } from '../../UI/Layout';
@@ -38,6 +37,8 @@ import GlobalVariableIcon from '../../UI/CustomSvgIcons/GlobalVariable';
 import SceneVariableIcon from '../../UI/CustomSvgIcons/SceneVariable';
 import ObjectVariableIcon from '../../UI/CustomSvgIcons/ObjectVariable';
 import LocalVariableIcon from '../../UI/CustomSvgIcons/LocalVariable';
+import PropertyIcon from '../../UI/CustomSvgIcons/Settings';
+import ParameterIcon from '../../UI/CustomSvgIcons/Parameter';
 import { ProjectScopedContainersAccessor } from '../../InstructionOrExpression/EventsScope';
 import Link from '../../UI/Link';
 import Add from '../../UI/CustomSvgIcons/Add';
@@ -53,12 +54,16 @@ type Props = {
   ...ParameterFieldProps,
   isObjectVariable: boolean,
   variablesContainers: Array<gdVariablesContainer>,
+  getVariableSourceFromIdentifier: (
+    identifier: string,
+    projectScopedContainers: gdProjectScopedContainers
+  ) => VariablesContainer_SourceType,
   enumerateVariables: () => Array<EnumeratedVariable>,
   forceDeclaration?: boolean,
   onOpenDialog: (VariableDialogOpeningProps => void) | null,
 };
 
-type VariableNameQuickAnalyzeResult = 0 | 1 | 2 | 3 | 4 | 5;
+type VariableNameQuickAnalyzeResult = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export type VariableFieldInterface = {|
   ...ParameterFieldInterface,
@@ -72,6 +77,8 @@ export const VariableNameQuickAnalyzeResults = {
   WRONG_EXPRESSION: 3,
   UNDECLARED_VARIABLE: 4,
   NAME_COLLISION_WITH_OBJECT: 5,
+  PARAMETER_WITH_CHILD: 6,
+  PROPERTY_WITH_CHILD: 7,
 };
 
 export const getRootVariableName = (name: string): string => {
@@ -95,6 +102,10 @@ export const getRootVariableName = (name: string): string => {
 export const quicklyAnalyzeVariableName = (
   name: string,
   variablesContainers?: Array<gdVariablesContainer>,
+  getVariableSourceFromIdentifier?: (
+    identifier: string,
+    projectScopedContainers: gdProjectScopedContainers
+  ) => VariablesContainer_SourceType | null,
   projectScopedContainersAccessor?: ProjectScopedContainersAccessor,
   isObjectVariable: boolean = false
 ): VariableNameQuickAnalyzeResult => {
@@ -122,17 +133,6 @@ export const quicklyAnalyzeVariableName = (
   }
 
   const rootVariableName = getRootVariableName(name);
-  if (
-    !isObjectVariable &&
-    projectScopedContainersAccessor &&
-    projectScopedContainersAccessor
-      .get()
-      .getObjectsContainersList()
-      .hasObjectOrGroupNamed(rootVariableName)
-  ) {
-    return VariableNameQuickAnalyzeResults.NAME_COLLISION_WITH_OBJECT;
-  }
-
   // Check at least the name of the root variable, it's the best we can do.
   if (
     variablesContainers &&
@@ -142,6 +142,38 @@ export const quicklyAnalyzeVariableName = (
   ) {
     return VariableNameQuickAnalyzeResults.UNDECLARED_VARIABLE;
   }
+
+  if (!projectScopedContainersAccessor) {
+    return VariableNameQuickAnalyzeResults.OK;
+  }
+  const projectScopedContainers = projectScopedContainersAccessor.get();
+
+  if (
+    !isObjectVariable &&
+    projectScopedContainers
+      .getObjectsContainersList()
+      .hasObjectOrGroupNamed(rootVariableName)
+  ) {
+    return VariableNameQuickAnalyzeResults.NAME_COLLISION_WITH_OBJECT;
+  }
+
+  if (
+    name.length !== rootVariableName.length &&
+    getVariableSourceFromIdentifier
+  ) {
+    const variableSource = getVariableSourceFromIdentifier(
+      rootVariableName,
+      projectScopedContainers
+    );
+
+    if (variableSource === gd.VariablesContainer.Parameters) {
+      return VariableNameQuickAnalyzeResults.PARAMETER_WITH_CHILD;
+    }
+    if (variableSource === gd.VariablesContainer.Properties) {
+      return VariableNameQuickAnalyzeResults.PROPERTY_WITH_CHILD;
+    }
+  }
+
   return VariableNameQuickAnalyzeResults.OK;
 };
 
@@ -159,6 +191,10 @@ export const getVariableSourceIcon = (
       return ObjectVariableIcon;
     case gd.VariablesContainer.Local:
       return LocalVariableIcon;
+    case gd.VariablesContainer.Parameters:
+      return ParameterIcon;
+    case gd.VariablesContainer.Properties:
+      return PropertyIcon;
     default:
       return UnknownTypeIcon;
   }
@@ -200,6 +236,7 @@ export default React.forwardRef<Props, VariableFieldInterface>(
       id,
       onInstructionTypeChanged,
       isObjectVariable,
+      getVariableSourceFromIdentifier,
     } = props;
 
     const field = React.useRef<?SemiControlledAutoCompleteInterface>(null);
@@ -269,10 +306,11 @@ export default React.forwardRef<Props, VariableFieldInterface>(
           ? field.current.getInputValue()
           : value;
         const isRootVariableDeclared =
-          variablesContainers &&
-          variablesContainers.some(variablesContainer =>
-            variablesContainer.has(getRootVariableName(fieldCurrentValue))
-          );
+          projectScopedContainersAccessor &&
+          projectScopedContainersAccessor
+            .get()
+            .getVariablesContainersList()
+            .has(getRootVariableName(fieldCurrentValue));
 
         onChange(fieldCurrentValue);
         onOpenDialog({
@@ -280,7 +318,7 @@ export default React.forwardRef<Props, VariableFieldInterface>(
           shouldCreate: !isRootVariableDeclared,
         });
       },
-      [onChange, onOpenDialog, value, variablesContainers]
+      [onChange, onOpenDialog, projectScopedContainersAccessor, value]
     );
 
     const description = parameterMetadata
@@ -290,6 +328,7 @@ export default React.forwardRef<Props, VariableFieldInterface>(
     const quicklyAnalysisResult = quicklyAnalyzeVariableName(
       value,
       variablesContainers,
+      getVariableSourceFromIdentifier,
       projectScopedContainersAccessor,
       isObjectVariable
     );
@@ -329,6 +368,14 @@ export default React.forwardRef<Props, VariableFieldInterface>(
           This variable has the same name as an object. Consider renaming one or
           the other.
         </Trans>
+      ) : forceDeclaration &&
+        quicklyAnalysisResult ===
+          VariableNameQuickAnalyzeResults.PARAMETER_WITH_CHILD ? (
+        <Trans>Parameters can't have children.</Trans>
+      ) : forceDeclaration &&
+        quicklyAnalysisResult ===
+          VariableNameQuickAnalyzeResults.PROPERTY_WITH_CHILD ? (
+        <Trans>Properties can't have children.</Trans>
       ) : null;
     const warningTranslatableText =
       !forceDeclaration &&
@@ -457,21 +504,6 @@ export default React.forwardRef<Props, VariableFieldInterface>(
   }
 );
 
-export const getVariablesContainerSourceType = (
-  projectScopedContainersAccessor: ProjectScopedContainersAccessor,
-  variableName: string
-) => {
-  const rootVariableName = getRootVariableName(variableName);
-  const variablesContainersList = projectScopedContainersAccessor
-    .get()
-    .getVariablesContainersList();
-  return variablesContainersList.has(rootVariableName)
-    ? variablesContainersList
-        .getVariablesContainerFromVariableName(rootVariableName)
-        .getSourceType()
-    : gd.VariablesContainer.Unknown;
-};
-
 export const renderVariableWithIcon = (
   {
     value,
@@ -482,16 +514,20 @@ export const renderVariableWithIcon = (
     projectScopedContainersAccessor,
   }: ParameterInlineRendererProps,
   tooltip: string,
-  ForcedVariableIcon?: SvgIconProps => React.Element<typeof SvgIcon>
+  getVariableSourceFromIdentifier: (
+    variableName: string,
+    projectScopedContainers: gdProjectScopedContainers
+  ) => VariablesContainer_SourceType
 ) => {
   if (!value && !parameterMetadata.isOptional()) {
     return <MissingParameterValue />;
   }
-  const VariableIcon =
-    ForcedVariableIcon ||
-    getVariableSourceIcon(
-      getVariablesContainerSourceType(projectScopedContainersAccessor, value)
-    );
+  const VariableIcon = getVariableSourceIcon(
+    getVariableSourceFromIdentifier(
+      value,
+      projectScopedContainersAccessor.get()
+    )
+  );
 
   const IconAndNameContainer = expressionIsValid
     ? React.Fragment

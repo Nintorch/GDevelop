@@ -6,6 +6,7 @@
 #include "GDCore/Project/Project.h"
 #include "GDCore/Project/Variable.h"
 #include "GDCore/Project/EventsFunctionsExtension.h"
+#include "GDCore/IDE/EventsFunctionTools.h"
 
 namespace gd {
 
@@ -42,6 +43,78 @@ VariablesContainersList::MakeNewVariablesContainersListForEventsFunctionsExtensi
 }
 
 VariablesContainersList
+VariablesContainersList::MakeNewVariablesContainersListForFreeEventsFunction(
+    const gd::EventsFunctionsExtension &extension,
+    const gd::EventsFunction &eventsFunction,
+    gd::VariablesContainer &parameterVariablesContainer) {
+  VariablesContainersList variablesContainersList;
+  variablesContainersList.Push(extension.GetGlobalVariables());
+  variablesContainersList.Push(extension.GetSceneVariables());
+
+  gd::EventsFunctionTools::ParametersToVariablesContainer(
+      eventsFunction.GetParametersForEvents(extension.GetEventsFunctions()),
+      parameterVariablesContainer);
+  variablesContainersList.Push(parameterVariablesContainer);
+
+  variablesContainersList.firstLocalVariableContainerIndex = 3;
+  return variablesContainersList;
+}
+
+VariablesContainersList VariablesContainersList::
+    MakeNewVariablesContainersListForBehaviorEventsFunction(
+        const gd::EventsFunctionsExtension &extension,
+        const gd::EventsBasedBehavior &eventsBasedBehavior,
+        const gd::EventsFunction &eventsFunction,
+        gd::VariablesContainer &parameterVariablesContainer,
+        gd::VariablesContainer &propertyVariablesContainer) {
+  VariablesContainersList variablesContainersList;
+  variablesContainersList.Push(extension.GetGlobalVariables());
+  variablesContainersList.Push(extension.GetSceneVariables());
+
+  gd::EventsFunctionTools::PropertiesToVariablesContainer(
+      eventsBasedBehavior.GetSharedPropertyDescriptors(), propertyVariablesContainer);
+  variablesContainersList.Push(propertyVariablesContainer);
+
+  gd::EventsFunctionTools::PropertiesToVariablesContainer(
+      eventsBasedBehavior.GetPropertyDescriptors(), propertyVariablesContainer);
+  variablesContainersList.Push(propertyVariablesContainer);
+
+  gd::EventsFunctionTools::ParametersToVariablesContainer(
+      eventsFunction.GetParametersForEvents(
+          eventsBasedBehavior.GetEventsFunctions()),
+      parameterVariablesContainer);
+  variablesContainersList.Push(parameterVariablesContainer);
+
+  variablesContainersList.firstLocalVariableContainerIndex = 5;
+  return variablesContainersList;
+}
+
+VariablesContainersList
+VariablesContainersList::MakeNewVariablesContainersListForObjectEventsFunction(
+    const gd::EventsFunctionsExtension &extension,
+    const gd::EventsBasedObject &eventsBasedObject,
+    const gd::EventsFunction &eventsFunction,
+    gd::VariablesContainer &parameterVariablesContainer,
+    gd::VariablesContainer &propertyVariablesContainer) {
+  VariablesContainersList variablesContainersList;
+  variablesContainersList.Push(extension.GetGlobalVariables());
+  variablesContainersList.Push(extension.GetSceneVariables());
+
+  gd::EventsFunctionTools::PropertiesToVariablesContainer(
+      eventsBasedObject.GetPropertyDescriptors(), propertyVariablesContainer);
+  variablesContainersList.Push(propertyVariablesContainer);
+
+  gd::EventsFunctionTools::ParametersToVariablesContainer(
+      eventsFunction.GetParametersForEvents(
+          eventsBasedObject.GetEventsFunctions()),
+      parameterVariablesContainer);
+  variablesContainersList.Push(parameterVariablesContainer);
+
+  variablesContainersList.firstLocalVariableContainerIndex = 4;
+  return variablesContainersList;
+}
+
+VariablesContainersList
 VariablesContainersList::MakeNewVariablesContainersListPushing(
     const VariablesContainersList& variablesContainersList, const gd::VariablesContainer& variablesContainer) {
   VariablesContainersList newVariablesContainersList(variablesContainersList);
@@ -74,11 +147,39 @@ const Variable& VariablesContainersList::Get(const gd::String& name) const {
 }
 
 const VariablesContainer &
-VariablesContainersList::GetVariablesContainerFromVariableName(
+VariablesContainersList::GetVariablesContainerFromVariableOrPropertyOrParameterName(
     const gd::String &variableName) const {
   for (auto it = variablesContainers.rbegin(); it != variablesContainers.rend();
        ++it) {
     if ((*it)->Has(variableName))
+      return **it;
+  }
+  return badVariablesContainer;
+}
+
+const VariablesContainer &VariablesContainersList::
+    GetVariablesContainerFromVariableOrPropertyName(
+        const gd::String &variableName) const {
+  for (auto it = variablesContainers.rbegin(); it != variablesContainers.rend();
+       ++it) {
+    if ((*it)->GetSourceType() !=
+            gd::VariablesContainer::SourceType::Parameters &&
+        (*it)->Has(variableName))
+      return **it;
+  }
+  return badVariablesContainer;
+}
+
+const VariablesContainer &VariablesContainersList::
+    GetVariablesContainerFromVariableNameOnly(
+        const gd::String &variableName) const {
+  for (auto it = variablesContainers.rbegin(); it != variablesContainers.rend();
+       ++it) {
+    if ((*it)->GetSourceType() !=
+            gd::VariablesContainer::SourceType::Parameters &&
+        (*it)->GetSourceType() !=
+            gd::VariablesContainer::SourceType::Properties &&
+        (*it)->Has(variableName))
       return **it;
   }
   return badVariablesContainer;

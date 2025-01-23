@@ -114,12 +114,13 @@ export default class EventsFunctionExtractorDialog extends React.Component<
     const eventsFunctionsExtension = project.getEventsFunctionsExtension(
       extensionName
     );
+    const freeEventsFunctions = eventsFunctionsExtension.getEventsFunctions();
     for (
       let index = 0;
-      index < eventsFunctionsExtension.getEventsFunctionsCount();
+      index < freeEventsFunctions.getEventsFunctionsCount();
       index++
     ) {
-      const groupName = eventsFunctionsExtension
+      const groupName = freeEventsFunctions
         .getEventsFunctionAt(index)
         .getGroup();
       if (groupName) {
@@ -327,6 +328,9 @@ export default class EventsFunctionExtractorDialog extends React.Component<
                 this.forceUpdate();
               }}
               onFunctionParameterWillBeRenamed={() => {
+                // Won't happen as the editor is freezed.
+              }}
+              onFunctionParameterTypeChanged={() => {
                 // Won't happen as the editor is freezed.
               }}
               freezeParameters
